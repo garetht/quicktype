@@ -133,13 +133,14 @@ export const TELEMETRY_HEADER = `Please help improve quicktype by enabling anony
 
 You can also enable telemetry on any quicktype invocation:
 
-  $ quicktype https://blockchain.info/latestblock -o Block.cs --telemetry enable
+  $ quicktype pokedex.json -o Pokedex.cs --telemetry enable
 
 This helps us improve quicktype by measuring:
 
-  * How many people use quicktype?
-  * What features are popular or unpopular?
-  * How does quicktype perform? Are there any errors?
+  * How many people use quicktype
+  * Which features are popular or unpopular
+  * Performance
+  * Errors
 
 quicktype does not collect:
 
@@ -147,9 +148,9 @@ quicktype does not collect:
   * Any personally identifiable information (PII)
   * Anything not directly related to quicktype's usage
 
-If you don't want to help us, you can dismiss this message with:
+If you don't want to help improve quicktype, you can dismiss this message with:
 
   $ quicktype --telemetry disable
 
-For a full privacy policy, please see https://app.quicktype.io/privacy
+For a full privacy policy, visit app.quicktype.io/privacy
 `;
