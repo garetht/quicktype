@@ -17,18 +17,21 @@ import {
     SchemaTypeSource,
     isSchemaSource,
     isGraphQLSource
-} from ".";
-import { OptionDefinition } from "./RendererOptions";
-import * as targetLanguages from "./Language/All";
-import { urlsFromURLGrammar } from "./URLGrammar";
-import { Annotation } from "./Source";
-import { IssueAnnotationData } from "./Annotation";
+} from "..";
+import { OptionDefinition } from "../RendererOptions";
+import * as targetLanguages from "../Language/All";
+import { urlsFromURLGrammar } from "../URLGrammar";
+import { Annotation } from "../Source";
+import { IssueAnnotationData } from "../Annotation";
 import { Readable } from "stream";
-import { panic, assert, defined, withDefault } from "./Support";
-import { introspectServer } from "./GraphQLIntrospection";
-import { getStream } from "./get-stream/index";
-import { train } from "./MarkovChain";
-import { sourcesFromPostmanCollection } from "./PostmanCollection";
+import { panic, assert, defined, withDefault } from "../Support";
+import { introspectServer } from "../GraphQLIntrospection";
+import { getStream } from "../get-stream/index";
+import { train } from "../MarkovChain";
+import { sourcesFromPostmanCollection } from "../PostmanCollection";
+
+import * as analytics from "./analytics";
+import { AnalyticsState } from "./analytics";
 
 const commandLineArgs = require("command-line-args");
 const getUsage = require("command-line-usage");
@@ -36,7 +39,7 @@ const chalk = require("chalk");
 const fetch = require("node-fetch");
 const wordWrap: (s: string) => string = require("wordwrap")(90);
 
-const packageJSON = require("../package.json");
+const packageJSON = require("../../package.json");
 
 const langs = targetLanguages.all.map(r => _.minBy(r.names, s => s.length)).join("|");
 const langDisplayNames = targetLanguages.all.map(r => r.displayName).join(", ");
@@ -479,7 +482,7 @@ function parseArgv(argv: string[]): CLIOptions {
 // will throw if it encounters an unknown option.
 function parseOptions(definitions: OptionDefinition[], argv: string[], partial: boolean): CLIOptions {
     const opts: { [key: string]: any } = commandLineArgs(definitions, { argv, partial });
-    const options: { rendererOptions: RendererOptions;[key: string]: any } = { rendererOptions: {} };
+    const options: { rendererOptions: RendererOptions; [key: string]: any } = { rendererOptions: {} };
     definitions.forEach(o => {
         if (!(o.name in opts)) return;
         const v = opts[o.name];
@@ -548,6 +551,8 @@ async function getSources(options: CLIOptions): Promise<TypeSource[]> {
 }
 
 export async function main(args: string[] | Partial<CLIOptions>) {
+    analytics.pageview("/");
+
     if (_.isArray(args) && args.length === 0) {
         usage();
     } else {
@@ -711,12 +716,36 @@ export async function main(args: string[] | Partial<CLIOptions>) {
 }
 
 if (require.main === module) {
-    main(process.argv.slice(2)).catch(e => {
-        if (e instanceof Error) {
-            console.error(`Error: ${e.message}.`);
-        } else {
-            console.error(e);
+    (async () => {
+        const args = process.argv.slice(2);
+        const analyticsState = await analytics.init();
+
+        const command = args.join(" ");
+        if (command === "analytics enable") {
+            analytics.setState("enabled");
+            console.log("Analytics enabled. Thank you for making quicktype better.");
+            process.exit(0);
+        } else if (command === "analytics disable") {
+            analytics.setState("disabled");
+            console.log("Analytics disabled.");
+            process.exit(0);
         }
-        process.exit(1);
-    });
+
+        try {
+            await main(args);
+        } catch (e) {
+            if (e instanceof Error) {
+                console.error(`Error: ${e.message}.`);
+            } else {
+                console.error(e);
+            }
+            process.exit(1);
+        }
+
+        if (analyticsState === "none") {
+            console.error(chalk.yellow("Please help us improve quicktype by enabling anonymous analytics:\n"));
+            console.error("  $ quicktype analytics enable");
+            console.error(chalk.dim("  $ quicktype analytics disable\n"));
+        }
+    })();
 }

@@ -26,12 +26,15 @@
     "lodash": "^4.17.4",
     "moment": "^2.19.3",
     "node-fetch": "^1.7.1",
-    "pkg": "^4.3.0",
+    "node-persist": "^2.1.0",
     "pako": "^1.0.6",
+    "pkg": "^4.3.0",
     "pluralize": "^7.0.0",
     "stream-json": "0.5.2",
     "string-to-stream": "^1.1.0",
-    "unicode-properties": "quicktype/unicode-properties#dist"
+    "unicode-properties": "quicktype/unicode-properties#dist",
+    "universal-analytics": "^0.4.16",
+    "uuid": "^3.2.1"
   },
   "devDependencies": {
     "@types/graphql": "^0.11.7",
@@ -40,9 +43,11 @@
     "@types/js-base64": "^2.3.1",
     "@types/lodash": "^4.14.72",
     "@types/node": "^8.0.19",
+    "@types/node-persist": "0.0.33",
     "@types/pako": "^1.0.0",
     "@types/pluralize": "0.0.28",
     "@types/shelljs": "^0.7.8",
+    "@types/universal-analytics": "^0.4.2",
     "ajv": "^5.2.2",
     "compare-versions": "^3.1.0",
     "deep-equal": "^1.0.1",
@@ -59,5 +64,5 @@
     "watch": "^1.0.2"
   },
   "files": ["dist/**"],
-  "bin": "dist/cli.js"
+  "bin": "dist/cli/index.js"
 }
