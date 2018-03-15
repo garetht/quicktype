@@ -38,7 +38,7 @@ class GoogleAnalytics implements Analytics {
     }
 
     timing(category: string, variable: string, time: number) {
-        this.visitor.timing(category, variable, time);
+        this.visitor.timing(category, variable, time).send();
     }
 
     event(category: string, action: string, label?: string, value?: string | number) {
