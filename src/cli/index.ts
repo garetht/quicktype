@@ -16,7 +16,8 @@ import {
     StringInput,
     SchemaTypeSource,
     isSchemaSource,
-    isGraphQLSource
+    isGraphQLSource,
+    languageNamed
 } from "..";
 import { OptionDefinition } from "../RendererOptions";
 import * as targetLanguages from "../Language/All";
@@ -30,8 +31,7 @@ import { getStream } from "../get-stream/index";
 import { train } from "../MarkovChain";
 import { sourcesFromPostmanCollection } from "../PostmanCollection";
 
-import * as analytics from "./analytics";
-import { AnalyticsState } from "./analytics";
+import { telemetry, TELEMETRY_HEADER } from "./telemetry";
 
 const commandLineArgs = require("command-line-args");
 const getUsage = require("command-line-usage");
@@ -72,6 +72,8 @@ export interface CLIOptions {
     help: boolean;
     quiet: boolean;
     version: boolean;
+
+    telemetry?: string;
 }
 
 async function readableFromFileOrUrl(fileOrUrl: string): Promise<Readable> {
@@ -233,11 +235,15 @@ function inferOptions(opts: Partial<CLIOptions>): CLIOptions {
         srcLang = withDefault<string>(srcLang, "json");
     }
 
+    const lang = opts.lang || inferLang(opts);
+    const language = languageNamed(lang);
+    assert(language !== undefined, `Unsupported output language: ${lang}`);
+
     /* tslint:disable:strict-boolean-expressions */
     return {
         src: opts.src || [],
         srcLang: srcLang,
-        lang: opts.lang || inferLang(opts),
+        lang: defined(language).displayName,
         topLevel: opts.topLevel || inferTopLevel(opts),
         noMaps: !!opts.noMaps,
         noEnums: !!opts.noEnums,
@@ -257,7 +263,8 @@ function inferOptions(opts: Partial<CLIOptions>): CLIOptions {
         graphqlIntrospect: opts.graphqlIntrospect,
         graphqlServerHeader: opts.graphqlServerHeader,
         addSchemaTopLevel: opts.addSchemaTopLevel,
-        template: opts.template
+        template: opts.template,
+        telemetry: opts.telemetry
     };
     /* tslint:enable */
 }
@@ -387,6 +394,12 @@ const optionDefinitions: OptionDefinition[] = [
         name: "quiet",
         type: Boolean,
         description: "Don't show issues in the generated code."
+    },
+    {
+        name: "telemetry",
+        type: String,
+        typeLabel: "enable|disable",
+        description: "Enable anonymous telemetry to help improve quicktype"
     },
     {
         name: "help",
@@ -551,12 +564,20 @@ async function getSources(options: CLIOptions): Promise<TypeSource[]> {
 }
 
 export async function main(args: string[] | Partial<CLIOptions>) {
-    analytics.pageview("/");
+    await telemetry.init();
+
+    telemetry.pageview("/");
 
     if (_.isArray(args) && args.length === 0) {
         usage();
     } else {
         let options = _.isArray(args) ? parseArgv(args) : inferOptions(args);
+
+        if (options.telemetry === "enable") {
+            telemetry.enable();
+        } else if (options.telemetry === "disable") {
+            telemetry.disable();
+        }
 
         if (options.help) {
             usage();
@@ -576,7 +597,7 @@ export async function main(args: string[] | Partial<CLIOptions>) {
         }
 
         let sources: TypeSource[] = [];
-        let leadingComments: string[] | undefined = undefined;
+        let leadingComments: string[] = [];
         let fixedTopLevels: boolean = false;
         switch (options.srcLang) {
             case "graphql":
@@ -629,7 +650,7 @@ export async function main(args: string[] | Partial<CLIOptions>) {
                         fixedTopLevels = true;
                     }
                     if (description !== undefined) {
-                        leadingComments = wordWrap(description).split("\n");
+                        leadingComments = leadingComments.concat(wordWrap(description).split("\n"));
                     }
                 }
                 break;
@@ -667,6 +688,10 @@ export async function main(args: string[] | Partial<CLIOptions>) {
             findSimilarClassesSchema = fs.readFileSync(options.findSimilarClassesSchema, "utf8");
         }
 
+        if (telemetry.state === "none") {
+            leadingComments = TELEMETRY_HEADER.split("\n").concat(leadingComments);
+        }
+
         let run = new Run({
             lang: options.lang,
             sources,
@@ -679,13 +704,15 @@ export async function main(args: string[] | Partial<CLIOptions>) {
             fixedTopLevels,
             noRender: options.noRender,
             rendererOptions: options.rendererOptions,
-            leadingComments,
+            leadingComments: leadingComments.length === 0 ? undefined : leadingComments,
             handlebarsTemplate,
             findSimilarClassesSchema,
             outputFilename: options.out !== undefined ? path.basename(options.out) : undefined
         });
 
-        const resultsByFilename = await run.run();
+        telemetry.event("default", "quicktype", options.lang);
+        const resultsByFilename = await telemetry.timeAsync("run", run.run);
+
         let onFirst = true;
         resultsByFilename.forEach(({ lines, annotations }, filename) => {
             const output = lines.join("\n");
@@ -716,36 +743,12 @@ export async function main(args: string[] | Partial<CLIOptions>) {
 }
 
 if (require.main === module) {
-    (async () => {
-        const args = process.argv.slice(2);
-        const analyticsState = await analytics.init();
-
-        const command = args.join(" ");
-        if (command === "analytics enable") {
-            analytics.setState("enabled");
-            console.log("Analytics enabled. Thank you for making quicktype better.");
-            process.exit(0);
-        } else if (command === "analytics disable") {
-            analytics.setState("disabled");
-            console.log("Analytics disabled.");
-            process.exit(0);
+    main(process.argv.slice(2)).catch(e => {
+        if (e instanceof Error) {
+            console.error(`Error: ${e.message}.`);
+        } else {
+            console.error(e);
         }
-
-        try {
-            await main(args);
-        } catch (e) {
-            if (e instanceof Error) {
-                console.error(`Error: ${e.message}.`);
-            } else {
-                console.error(e);
-            }
-            process.exit(1);
-        }
-
-        if (analyticsState === "none") {
-            console.error(chalk.yellow("Please help us improve quicktype by enabling anonymous analytics:\n"));
-            console.error("  $ quicktype analytics enable");
-            console.error(chalk.dim("  $ quicktype analytics disable\n"));
-        }
-    })();
+        process.exit(1);
+    });
 }
