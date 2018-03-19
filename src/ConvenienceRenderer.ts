@@ -29,15 +29,19 @@ import {
     descriptionTypeAttributeKind,
     propertyDescriptionsTypeAttributeKind
 } from "./TypeAttributes";
-import { enumCaseNames } from "./AccessorNames";
+import { enumCaseNames, classPropertyNames } from "./AccessorNames";
 
 const wordWrap: (s: string) => string = require("wordwrap")(90);
 
 const givenNameOrder = 1;
 const inferredNameOrder = 3;
+
 const classPropertyNameOrder = 2;
+const assignedClassPropertyNameOrder = 1;
+
 const enumCaseNameOrder = 2;
-const mappedEnumCaseNameOrder = 1;
+const assignedEnumCaseNameOrder = 1;
+
 const unionMemberNameOrder = 4;
 
 function splitDescription(descriptions: OrderedSet<string> | undefined): string[] | undefined {
@@ -309,8 +313,11 @@ export abstract class ConvenienceRenderer extends Renderer {
         c: ClassType,
         _className: Name,
         p: ClassProperty,
-        jsonName: string
+        jsonName: string,
+        assignedName: string | undefined
     ): Name | undefined {
+        const namer = this.namerForClassProperty(c, p);
+        if (namer === null) return undefined;
         // FIXME: This alternative should really depend on what the
         // actual name of the class ends up being.  We can do this
         // with a DependencyName.
@@ -321,9 +328,9 @@ export abstract class ConvenienceRenderer extends Renderer {
         // maybe we'll need global properties for some weird language at
         // some point.
         const alternative = `${c.getCombinedName()}_${jsonName}`;
-        const namer = this.namerForClassProperty(c, p);
-        if (namer === null) return undefined;
-        return new SimpleName(OrderedSet([jsonName, alternative]), namer, classPropertyNameOrder);
+        const order = assignedName === undefined ? classPropertyNameOrder : assignedClassPropertyNameOrder;
+        const names = assignedName === undefined ? [jsonName, alternative] : [assignedName];
+        return new SimpleName(OrderedSet(names), namer, order);
     }
 
     protected makePropertyDependencyNames(
@@ -344,9 +351,11 @@ export abstract class ConvenienceRenderer extends Renderer {
 
         let ns: Namespace | undefined;
 
+        const accessorNames = classPropertyNames(c, this.targetLanguage.name);
         const names = c.sortedProperties
             .map((p, jsonName) => {
-                const name = this.makeNameForProperty(c, className, p, jsonName);
+                const assignedName = accessorNames.get(jsonName);
+                const name = this.makeNameForProperty(c, className, p, jsonName, assignedName);
                 if (name === undefined) return undefined;
                 if (ns === undefined) {
                     ns = new Namespace(c.getCombinedName(), this.globalNamespace, forbiddenNamespaces, forbiddenNames);
@@ -399,7 +408,7 @@ export abstract class ConvenienceRenderer extends Renderer {
         // FIXME: See the FIXME in `makeNameForProperty`.  We do have global
         // enum cases, though (in Go), so this is actually useful already.
         const alternative = `${e.getCombinedName()}_${caseName}`;
-        const order = assignedName === undefined ? enumCaseNameOrder : mappedEnumCaseNameOrder;
+        const order = assignedName === undefined ? enumCaseNameOrder : assignedEnumCaseNameOrder;
         const names = assignedName === undefined ? [caseName, alternative] : [assignedName];
         return new SimpleName(OrderedSet(names), nonNull(this._enumCaseNamer), order);
     }
@@ -422,8 +431,8 @@ export abstract class ConvenienceRenderer extends Renderer {
         let names = Map<string, Name>();
         const accessorNames = enumCaseNames(e, this.targetLanguage.name);
         e.cases.forEach(caseName => {
-            const assignedCaseName = accessorNames.get(caseName);
-            const name = this.makeNameForEnumCase(e, enumName, caseName, assignedCaseName);
+            const assignedName = accessorNames.get(caseName);
+            const name = this.makeNameForEnumCase(e, enumName, caseName, assignedName);
             names = names.set(caseName, ns.add(name));
         });
         defined(this._caseNamesStoreView).set(e, names);

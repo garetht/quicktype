@@ -4,17 +4,18 @@ import { Map } from "immutable";
 
 import { TypeAttributeKind } from "./TypeAttributes";
 import { checkStringMap, isStringMap, checkArray, panic } from "./Support";
-import { EnumType } from "./Type";
+import { EnumType, ClassType } from "./Type";
 
-export type AccessorEntry = string | { [ language: string ]: string };
+export type AccessorEntry = string | { [language: string]: string };
 
-export type AccessorNames = { [ key: string ]: AccessorEntry } | AccessorEntry[];
+export type AccessorNames = { [key: string]: AccessorEntry } | AccessorEntry[];
 
 export const accessorNamesTypeAttributeKind = new TypeAttributeKind<AccessorNames>(
     "accessorNames",
     undefined,
     _ => undefined,
-    undefined);
+    undefined
+);
 
 function isAccessorEntry(x: any): x is AccessorEntry {
     if (typeof x === "string") {
@@ -48,6 +49,13 @@ function lookupKey(accessors: AccessorNames, key: string, language: string): str
     if (maybeCatchAll !== undefined) return maybeCatchAll;
 
     return undefined;
+}
+
+export function classPropertyNames(c: ClassType, language: string): Map<string, string | undefined> {
+    const accessors = accessorNamesTypeAttributeKind.tryGetInAttributes(c.getAttributes());
+    const map = c.properties;
+    if (accessors === undefined) return map.map(_ => undefined);
+    return map.map((_cp, n) => lookupKey(accessors, n, language));
 }
 
 export function enumCaseNames(e: EnumType, language: string): Map<string, string | undefined> {
