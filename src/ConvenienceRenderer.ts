@@ -29,7 +29,7 @@ import {
     descriptionTypeAttributeKind,
     propertyDescriptionsTypeAttributeKind
 } from "./TypeAttributes";
-import { enumCaseNames, classPropertyNames } from "./AccessorNames";
+import { enumCaseNames, classPropertyNames, unionMemberName } from "./AccessorNames";
 
 const wordWrap: (s: string) => string = require("wordwrap")(90);
 
@@ -371,9 +371,11 @@ export abstract class ConvenienceRenderer extends Renderer {
     };
 
     protected makeNameForUnionMember(u: UnionType, unionName: Name, t: Type): Name {
-        return new DependencyName(nonNull(this._unionMemberNamer), unionMemberNameOrder, lookup =>
-            this.proposeUnionMemberName(u, unionName, t, lookup)
-        );
+        return new DependencyName(nonNull(this._unionMemberNamer), unionMemberNameOrder, lookup => {
+            const assignedName = unionMemberName(u, t, this.targetLanguage.name);
+            if (assignedName !== undefined) return assignedName;
+            return this.proposeUnionMemberName(u, unionName, t, lookup);
+        });
     }
 
     private addUnionMemberNames = (u: UnionType, unionName: Name): void => {
