@@ -29,6 +29,7 @@ import {
     descriptionTypeAttributeKind,
     propertyDescriptionsTypeAttributeKind
 } from "./TypeAttributes";
+import { enumCaseNames } from "./AccessorNames";
 
 const wordWrap: (s: string) => string = require("wordwrap")(90);
 
@@ -36,6 +37,7 @@ const givenNameOrder = 1;
 const inferredNameOrder = 3;
 const classPropertyNameOrder = 2;
 const enumCaseNameOrder = 2;
+const mappedEnumCaseNameOrder = 1;
 const unionMemberNameOrder = 4;
 
 function splitDescription(descriptions: OrderedSet<string> | undefined): string[] | undefined {
@@ -388,11 +390,18 @@ export abstract class ConvenienceRenderer extends Renderer {
         defined(this._memberNamesStoreView).set(u, names);
     };
 
-    protected makeNameForEnumCase(e: EnumType, _enumName: Name, caseName: string): Name {
+    protected makeNameForEnumCase(
+        e: EnumType,
+        _enumName: Name,
+        caseName: string,
+        assignedName: string | undefined
+    ): Name {
         // FIXME: See the FIXME in `makeNameForProperty`.  We do have global
         // enum cases, though (in Go), so this is actually useful already.
         const alternative = `${e.getCombinedName()}_${caseName}`;
-        return new SimpleName(OrderedSet([caseName, alternative]), nonNull(this._enumCaseNamer), enumCaseNameOrder);
+        const order = assignedName === undefined ? enumCaseNameOrder : mappedEnumCaseNameOrder;
+        const names = assignedName === undefined ? [caseName, alternative] : [assignedName];
+        return new SimpleName(OrderedSet(names), nonNull(this._enumCaseNamer), order);
     }
 
     // FIXME: this is very similar to addPropertyNameds and addUnionMemberNames
@@ -411,8 +420,11 @@ export abstract class ConvenienceRenderer extends Renderer {
             ns = new Namespace(e.getCombinedName(), this.globalNamespace, forbiddenNamespaces, forbiddenNames);
         }
         let names = Map<string, Name>();
+        const accessorNames = enumCaseNames(e, this.targetLanguage.name);
         e.cases.forEach(caseName => {
-            names = names.set(caseName, ns.add(this.makeNameForEnumCase(e, enumName, caseName)));
+            const assignedCaseName = accessorNames.get(caseName);
+            const name = this.makeNameForEnumCase(e, enumName, caseName, assignedCaseName);
+            names = names.set(caseName, ns.add(name));
         });
         defined(this._caseNamesStoreView).set(e, names);
     };

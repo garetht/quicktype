@@ -26,6 +26,7 @@ import {
     makeTypeAttributesInferred
 } from "./TypeAttributes";
 import { JSONSchema, JSONSchemaStore } from "./JSONSchemaStore";
+import { accessorNamesTypeAttributeKind, checkAccessorNames } from "./AccessorNames";
 
 export enum PathElementKind {
     Root,
@@ -376,6 +377,10 @@ function makeAttributes(schema: StringMap, loc: Location, attributes: TypeAttrib
     const maybeDescription = schema.description;
     if (typeof maybeDescription === "string") {
         attributes = descriptionTypeAttributeKind.setInAttributes(attributes, OrderedSet([maybeDescription]));
+    }
+    const maybeAccessors = schema["qt-accessors"];
+    if (maybeAccessors !== undefined) {
+        attributes = accessorNamesTypeAttributeKind.setInAttributes(attributes, checkAccessorNames(maybeAccessors));
     }
     return modifyTypeNames(attributes, maybeTypeNames => {
         const typeNames = defined(maybeTypeNames);
