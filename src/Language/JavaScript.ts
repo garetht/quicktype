@@ -1,6 +1,6 @@
 "use strict";
 
-import { Type, matchType, directlyReachableSingleNamedType, ClassProperty } from "../Type";
+import { Type, matchType, directlyReachableSingleNamedType, ClassProperty, ClassType } from "../Type";
 import { TypeGraph } from "../TypeGraph";
 import {
     utf16LegalizeCharacters,
@@ -128,6 +128,17 @@ export class JavaScriptRenderer extends ConvenienceRenderer {
 
     protected namedTypeToNameForTopLevel(type: Type): Type | undefined {
         return directlyReachableSingleNamedType(type);
+    }
+
+    protected makeNameForProperty(
+        c: ClassType,
+        className: Name,
+        p: ClassProperty,
+        jsonName: string,
+        _assignedName: string | undefined
+    ): Name | undefined {
+        // Ignore the assigned name
+        return super.makeNameForProperty(c, className, p, jsonName, undefined);
     }
 
     protected emitDescriptionBlock(lines: string[]): void {
